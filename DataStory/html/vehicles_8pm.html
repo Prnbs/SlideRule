@@ -28,7 +28,7 @@ L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(actualMap);
 var map = new L.markerClusterGroup();
 var THOUSANDS = 3;
-var API_ENDPOINT = "https://rawgit.com/Prnbs/SlideRule/master/DataStory/vehicles_8pm.json?";
+var API_ENDPOINT = "https://rawgit.com/Prnbs/SlideRule/master/DataStory/json/vehicles_8pm.json?";
 for (var i = 0; i < THOUSANDS; i++) {
   offset = i * 1000;
   jQuery.get(API_ENDPOINT + "$offset=" + offset, function(data) {
