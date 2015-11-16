@@ -10,8 +10,8 @@ def distance(lat1, long1, lat2, long2):
 
 
 if __name__ == '__main__':
-    traps = pd.read_csv('../input/train.csv', parse_dates=['Date'])
-    weather = pd.read_csv('../input/weather.csv', parse_dates=['Date'])
+    traps = pd.read_csv('../input/train_clean.csv', parse_dates=['Date'])
+    weather = pd.read_csv('../input/weather_corrected.csv', parse_dates=['Date'])
     spray = pd.read_csv('../input/spray.csv', parse_dates=['Date'])
 
     # new columns to hold info if a location was sprayed and if yes then how many days ago
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         else:
             break
 
-    print "First non negeative date at ", traps_idx
+    print "First non negative date at ", traps_idx
 
     # now update the two new arrays
     # first need to solve closest pair of points problem
@@ -60,11 +60,27 @@ if __name__ == '__main__':
                     break
             l_subdivision_index.append(trap_idx_last_item)
             print trap_idx_last_item, (date - dates_sprayed[index]).days
+        else:
+            # last date on spray's list
+            next_date = dates_sprayed[index]
+            while trap_idx_last_item < len(traps):
+                date = traps.iloc[trap_idx_last_item, 0]
+                if date > next_date:
+                        sprayed[trap_idx_last_item] = True
+                        # print  (date - dates_sprayed[index]).days
+                        last_sprayed[trap_idx_last_item] = (date - dates_sprayed[index]).days
+                        trap_idx_last_item += 1
+                else:
+                    break
 
     # sprayed_series = pd.Series(sprayed, index=traps.index)
     # last_sprayed_series = pd.Series(last_sprayed,  index=traps.index)
 
-    traps['sprayed'] = sprayed
+    # traps['sprayed'] = sprayed
     traps['when_sprayed'] = last_sprayed
 
-    traps.to_csv('../input/traps_spray.csv')
+    merged = traps.merge(weather, how="inner", on='Date')
+    # merged = merged[merged.Station != 2]
+    merged.to_csv('../input/train_weather_spray.csv', index=False)
+
+    # traps.to_csv('../input/traps_spray.csv')
