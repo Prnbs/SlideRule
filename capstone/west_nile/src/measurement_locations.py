@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import KernelDensity
 
 mapdata = np.loadtxt("../input/mapdata_copyright_openstreetmap_contributors.txt")
-traps = pd.read_csv('../input/train.csv')[['Date', 'Trap','Longitude', 'Latitude', 'WnvPresent']]
+traps = pd.read_csv('../input/train_original.csv')[['Date', 'Trap','Longitude', 'Latitude', 'WnvPresent']]
 
 alpha_cm = plt.cm.Reds
 alpha_cm._init()

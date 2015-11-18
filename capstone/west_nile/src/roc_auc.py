@@ -19,11 +19,10 @@ from sklearn import tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-# from sklearn.svm import SVC
 # clf = RandomForestClassifier(n_estimators=100, verbose=1)
-# clf = GaussianNB()
+clf = GaussianNB()
 # clf = SVC(kernel='linear', C=1000.0)
-clf = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
+# clf = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
 # Compute ROC curve and ROC area for each class
 fpr = dict()
 tpr = dict()
@@ -66,10 +65,10 @@ plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
 plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
-plt.title('Receiver operating characteristic Decision tree')
+plt.title('Receiver operating characteristic GaussianNB')
 plt.legend(loc="lower right", prop = fontP)
 # plt.show()
-plt.savefig('../input/DecisionTree.jpg')
+plt.savefig('../input/GaussianNB.jpg')
 
 
 ##############################################################################
