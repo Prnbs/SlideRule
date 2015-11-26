@@ -89,4 +89,4 @@ if __name__ == '__main__':
     plt.title('Receiver operating characteristic')
     plt.legend(loc="lower right", prop = fontP)
     # plt.show()
-    plt.savefig('../plots/No_precip.jpg')
+    plt.savefig('../plots/Extracted_Species.jpg')
