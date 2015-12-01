@@ -5,19 +5,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from sklearn import cross_validation
-from sklearn.cross_validation import KFold
+from sklearn.cross_validation import KFold, StratifiedKFold
 from sklearn.cross_validation import train_test_split
 
 from matplotlib.font_manager import FontProperties
 
-def plot_roc_auc(clf, plt, traps, name):
+def plot_roc_auc(clf, plt, traps, labels, name):
     fpr = dict()
     tpr = dict()
     roc_auc = dict()
 
     # Compute micro-average ROC curve and ROC area
 
-    kf = KFold(len(traps), n_folds=10, shuffle=True)
+    kf = StratifiedKFold(labels, n_folds=10, shuffle=True)
 
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
@@ -56,7 +56,7 @@ def plot_roc_auc(clf, plt, traps, name):
              label='Mean ROC (area = %0.2f)' % mean_auc, lw=2)
 
 if __name__ == '__main__':
-    traps = pd.read_csv('../input/train_weather_spray.csv', verbose=True)#, parse_dates=['Date'])
+    traps = pd.read_csv('../input/train_weather_spray_clustered.csv', verbose=True)#, parse_dates=['Date'])
 
 # extract label
     labels = traps['WnvPresent']
@@ -74,10 +74,10 @@ if __name__ == '__main__':
     clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
     # Compute ROC curve and ROC area for each class
 
-    plt = plot_roc_auc(clf_dt, plt, traps, 'D Tree')
-    plt = plot_roc_auc(clf_nb, plt, traps, 'G NB')
-    plt = plot_roc_auc(clf_rf, plt, traps, 'R Forest')
-    # plot_roc_auc(clf_svc, plt, traps)
+    plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
+    plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
+    plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
+    plt = plot_roc_auc(clf_rf, plt, traps, labels,'SVC')
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -89,4 +89,4 @@ if __name__ == '__main__':
     plt.title('Receiver operating characteristic')
     plt.legend(loc="lower right", prop = fontP)
     # plt.show()
-    plt.savefig('../plots/Extracted_Species.jpg')
+    plt.savefig('../plots/Week_Weather_Stratified#3.jpg')

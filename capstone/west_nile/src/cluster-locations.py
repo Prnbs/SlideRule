@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 import pandas as pd
 from sklearn.cluster import KMeans
 
-traps = pd.read_csv('../input/train_weather_spray.csv', verbose=True, parse_dates=['Date'])
+traps = pd.read_csv('../input/train_weather_spray_appended.csv', verbose=True, parse_dates=['Date'])
 
 trap_loc = traps[['Longitude', 'Latitude']]
 traps = traps.drop('Latitude', 1)
@@ -38,7 +38,7 @@ traps['Year'] = year
 traps['Day'] = day
 # traps['PrecipTotal_Corr'] = traps['PrecipTotal_Corr'].apply(np.log)
 
-traps.to_csv('../input/train_weather_spray.csv', index=False)
+traps.to_csv('../input/train_weather_spray_clustered.csv', index=False)
 
 # print labels
 
