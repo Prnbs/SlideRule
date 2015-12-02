@@ -10,8 +10,8 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.cross_validation import KFold, StratifiedKFold
 
 
-def clean_train():
-    traps = pd.read_csv('../input/train.csv', parse_dates=['Date'])
+def clean_train(in_file, out_file):
+    traps = pd.read_csv(in_file, parse_dates=['Date'])
     d_categorical_species = {}
     d_categorical_species['CULEX ERRATICUS'] = 0
     d_categorical_species['CULEX PIPIENS'] = 1
@@ -20,6 +20,7 @@ def clean_train():
     d_categorical_species['CULEX SALINARIUS'] = 4
     d_categorical_species['CULEX TARSALIS'] = 5
     d_categorical_species['CULEX TERRITANS'] = 6
+    d_categorical_species['UNSPECIFIED CULEX'] = 7
 
     species_categorical = np.full((len(traps), 1), 0)
 
@@ -35,10 +36,16 @@ def clean_train():
             species_categorical[index] = 0
 
     traps = traps.drop("Species", 1)
+    traps = traps.drop("Address", 1)
+    traps = traps.drop("Block", 1)
+    traps = traps.drop("Street", 1)
+    traps = traps.drop("AddressNumberAndStreet", 1)
+    traps = traps.drop("AddressAccuracy", 1)
+    traps = traps.drop("Trap", 1)
 
     traps['Species_Categorical'] = species_categorical
 
-    traps.to_csv('../input/train_clean.csv', index=False)
+    traps.to_csv(out_file, index=False)
 
 
 def is_number(s):
@@ -67,8 +74,8 @@ def correct_station_data(row_index, col_index, weather):
     return result
 
 
-def clean_weather():
-    weather = pd.read_csv('../input/weather.csv', parse_dates=['Date'])
+def clean_weather(in_file, out_file):
+    weather = pd.read_csv(in_file, parse_dates=['Date'])
     station_idx = weather.columns.get_loc("Station")
 
     precip_corrected = np.full((len(weather), 1), 0)
@@ -109,12 +116,12 @@ def clean_weather():
     weather = weather[weather.Station != 2]
     weather = weather.drop("Station", 1)
 
-    weather.to_csv('../input/weather_corrected.csv', index=False)
+    weather.to_csv(out_file, index=False)
 
 
-def merge_files():
-    traps = pd.read_csv('../input/train_clean.csv', parse_dates=['Date'])
-    weather = pd.read_csv('../input/weather_corrected.csv', parse_dates=['Date'])
+def merge_files(in_train_file, in_weather_file, out_file):
+    traps = pd.read_csv(in_train_file, parse_dates=['Date'])
+    weather = pd.read_csv(in_weather_file, parse_dates=['Date'])
     spray = pd.read_csv('../input/spray.csv', parse_dates=['Date'])
 
     # new columns to hold info if a location was sprayed and if yes then how many days ago
@@ -130,9 +137,12 @@ def merge_files():
     spray_idx = 0
     traps_idx = 0
 
+    spray_date_idx = spray.columns.get_loc("Date")
+    traps_date_idx = traps.columns.get_loc("Date")
+
     # keep iterating over train until day diff is positive
-    while  traps_idx < len(traps):
-        day_diff = traps.iloc[traps_idx, 0] - spray.iloc[spray_idx, 0]
+    while traps_idx < len(traps):
+        day_diff = traps.iloc[traps_idx, traps_date_idx] - spray.iloc[spray_idx, spray_date_idx]
         # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
         if day_diff.days < 0:
             sprayed[traps_idx] = False
@@ -153,7 +163,7 @@ def merge_files():
             next_date = dates_sprayed[index+1]
             # find the index up to which this sprayed data can be used
             while trap_idx_last_item < len(traps):
-                date = traps.iloc[trap_idx_last_item, 0]
+                date = traps.iloc[trap_idx_last_item, traps_date_idx]
                 if date < next_date:
                     sprayed[trap_idx_last_item] = True
                     # print  (date - dates_sprayed[index]).days
@@ -167,7 +177,7 @@ def merge_files():
             # last date on spray's list
             next_date = dates_sprayed[index]
             while trap_idx_last_item < len(traps):
-                date = traps.iloc[trap_idx_last_item, 0]
+                date = traps.iloc[trap_idx_last_item, traps_date_idx]
                 if date > next_date:
                         sprayed[trap_idx_last_item] = True
                         # print  (date - dates_sprayed[index]).days
@@ -184,17 +194,17 @@ def merge_files():
 
     merged = traps.merge(weather, how="inner", on='Date')
     # merged = merged[merged.Station != 2]
-    merged.to_csv('../input/train_weather_spray.csv', index=False)
+    merged.to_csv(out_file, index=False)
 
 
-def last_week_weather(days_past):
-    traps_actual = pd.read_csv('../input/train_weather_spray.csv', parse_dates=['Date'])
+def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
+    traps_actual = pd.read_csv(in_merged_file, parse_dates=['Date'])
     # only want last week's data for when virus is present
     traps = traps_actual[traps_actual.WnvPresent == 1]
     print "Length before ", len(traps_actual)
 
     # create a dictionary from weather file with date as key
-    reader = pd.read_csv(open("../input/weather_corrected.csv"))
+    reader = pd.read_csv(open(in_weather_file))
     weather = {}
     for index, row in reader.iterrows():
         # print row[0]
@@ -225,12 +235,13 @@ def last_week_weather(days_past):
     traps_actual.to_csv('../input/train_weather_spray_appended.csv', index=False)
 
 
-def cluster_locations():
-    traps = pd.read_csv('../input/train_weather_spray_appended.csv', parse_dates=['Date'])
+def cluster_locations(in_file, out_file, test=False):
+    traps = pd.read_csv(in_file, parse_dates=['Date'])
 
     trap_loc = traps[['Longitude', 'Latitude']]
     traps = traps.drop('Latitude', 1)
     traps = traps.drop('Longitude', 1)
+
 
     day = []
     week_of_year = []
@@ -253,7 +264,9 @@ def cluster_locations():
     traps['Month'] = month
     traps['Year'] = year
     traps['Day'] = day
-    traps.to_csv('../input/train_weather_spray_clustered.csv', index=False)
+    if not test:
+        traps = traps.drop('NumMosquitos', 1)
+    traps.to_csv(out_file, index=False)
 
 
 def plot_roc_auc(clf, plt, traps, labels, name):
@@ -270,7 +283,6 @@ def plot_roc_auc(clf, plt, traps, labels, name):
     mean_accuracy = 0
 
     for train_indices, test_indices in kf:
-
         features_train = traps.iloc[train_indices]
         features_test  = traps.iloc[test_indices]
         labels_train   = [labels[ii] for ii in train_indices]
@@ -297,8 +309,8 @@ def plot_roc_auc(clf, plt, traps, labels, name):
     return plt
 
 
-def roc_auc(file_num):
-    traps = pd.read_csv('../input/train_weather_spray_clustered.csv')
+def roc_auc(file_num, in_file):
+    traps = pd.read_csv(in_file)
 
     # extract label
     labels = traps['WnvPresent']
@@ -317,10 +329,10 @@ def roc_auc(file_num):
     # Compute ROC curve and ROC area for each class
     import matplotlib.pyplot as plt
     plt.clf()
-    plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
-    plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
+    # plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
+    # plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
     plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
-    plt = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
+    # plt = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -335,20 +347,54 @@ def roc_auc(file_num):
     # plt.show()
     file_name = '../plots/Week_Weather_Stratified#' + str(file_num) + '.jpg'
     plt.savefig(file_name)
+    return clf_rf
+
+
+def predict_virus(clf, in_file):
+     traps = pd.read_csv(in_file)
+     id = traps['Id']
+     traps = traps.drop('Id', 1)
+     pred = clf.predict(traps)
+     # print pred
+     submission = pd.DataFrame()
+     traps['WnvPresent'] = pred
+     traps['Id'] = id
+     traps.to_csv('../input/result.csv', index=False)
+
 
 if __name__ == '__main__':
-    # clean_train()
-    # print "Cleaned train..."
-    # clean_weather()
-    # print "Cleaned weather..."
-    # merge_files()
-    # print "Merged train, weather, spray"
+    in_train_file = '../input/train.csv'
+    out_train_file = '../input/train_clean.csv'
+    clean_train(in_train_file, out_train_file)
+    print "Cleaned train..."
+    in_weather_file = '../input/weather.csv'
+    out_weather_file = '../input/weather_corrected.csv'
+    clean_weather(in_weather_file, out_weather_file)
+    print "Cleaned weather..."
+    out_merged_file = '../input/train_weather_spray.csv'
+    merge_files(out_train_file, out_weather_file, out_merged_file)
+    print "Merged train, weather, spray"
 
-    days_past = [5,7,10,15,20]
-    for day in days_past:
-        last_week_weather(day)
-        print "Added ", str(day), " days of past weather"
-        cluster_locations()
-        print "Clustered data..."
-        roc_auc(day)
+    # days_past = [5,7,10,15,20]
+    # for day in days_past:
+    day = 20
+    out_train_appended = '../input/train_weather_spray_appended.csv'
+    last_week_weather(day, out_merged_file, out_weather_file, out_train_appended)
+    print "Added ", str(day), " days of past weather"
+    out_clustered_file = '../input/train_weather_spray_clustered.csv'
+    cluster_locations(out_train_appended, out_clustered_file)
+    print "Clustered data..."
+    classifier = roc_auc(day, out_clustered_file)
 
+    in_test_file = '../input/test.csv'
+    out_test_file = '../input/test_clean.csv'
+    print "Cleaned test..."
+    clean_train(in_test_file, out_test_file)
+    out_merged_test_file = '../input/test_weather_spray.csv'
+    print "Merged test, weather, spray"
+    merge_files(out_test_file,out_weather_file, out_merged_test_file)
+    out_clustered_test_file = '../input/test_weather_spray_clustered.csv'
+    print "Clustered test data..."
+    cluster_locations(out_merged_test_file, out_clustered_test_file, test=True)
+    print "Predicting..."
+    [predict_virus(classifier,out_clustered_test_file)]
