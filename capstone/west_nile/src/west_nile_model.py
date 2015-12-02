@@ -226,7 +226,7 @@ def last_week_weather(days_past):
 
 
 def cluster_locations():
-    traps = pd.read_csv('../input/train_weather_spray_appended.csv', verbose=True, parse_dates=['Date'])
+    traps = pd.read_csv('../input/train_weather_spray_appended.csv', parse_dates=['Date'])
 
     trap_loc = traps[['Longitude', 'Latitude']]
     traps = traps.drop('Latitude', 1)
@@ -267,7 +267,7 @@ def plot_roc_auc(clf, plt, traps, labels, name):
 
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
-    all_tpr = []
+    mean_accuracy = 0
 
     for train_indices, test_indices in kf:
 
@@ -284,25 +284,21 @@ def plot_roc_auc(clf, plt, traps, labels, name):
         mean_tpr += interp(mean_fpr, fpr, tpr)
         mean_tpr[0] = 0.0
 
-        roc_auc = auc(fpr, tpr)
-        label = 'ROC for ' + name +' (area = %0.2f)'
-        plt.plot(fpr, tpr, label=label % roc_auc)
-
-        # print features_train.head(2)
-
         from sklearn.metrics import accuracy_score
-        print accuracy_score(labels_test, pred)
-        print accuracy_score(labels_test, pred)
-        return plt
+        mean_accuracy += accuracy_score(labels_test, pred)
 
+    print name, mean_accuracy / len(kf)
+    label = 'ROC for ' + name +' (area = %0.2f)'
     mean_tpr /= len(kf)
     mean_tpr[-1] = 1.0
     mean_auc = auc(mean_fpr, mean_tpr)
-    plt.plot(mean_fpr, mean_tpr, 'k--',label='Mean ROC (area = %0.2f)' % mean_auc, lw=2)
+    plt.plot(mean_fpr, mean_tpr,
+             label=label % mean_auc, lw=2)
+    return plt
 
 
 def roc_auc(file_num):
-    traps = pd.read_csv('../input/train_weather_spray_clustered.csv', verbose=True)#, parse_dates=['Date'])
+    traps = pd.read_csv('../input/train_weather_spray_clustered.csv')
 
     # extract label
     labels = traps['WnvPresent']
@@ -314,12 +310,13 @@ def roc_auc(file_num):
     from sklearn.naive_bayes import GaussianNB
     from sklearn.svm import SVC
 
-    clf_rf = RandomForestClassifier(n_estimators=100, verbose=1)
+    clf_rf = RandomForestClassifier(n_estimators=100)
     clf_nb = GaussianNB()
     clf_svc = SVC(kernel='linear', C=1000.0)
     clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
     # Compute ROC curve and ROC area for each class
     import matplotlib.pyplot as plt
+    plt.clf()
     plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
     plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
     plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
@@ -332,23 +329,26 @@ def roc_auc(file_num):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
+    title = 'ROC with ' + str(file_num) + ' days of extra data'
+    plt.title(title)
     plt.legend(loc="lower right", prop = fontP)
     # plt.show()
     file_name = '../plots/Week_Weather_Stratified#' + str(file_num) + '.jpg'
     plt.savefig(file_name)
 
 if __name__ == '__main__':
-    days_past = 20
     # clean_train()
     # print "Cleaned train..."
     # clean_weather()
     # print "Cleaned weather..."
     # merge_files()
     # print "Merged train, weather, spray"
-    last_week_weather(days_past)
-    print "Added ", str(days_past), " days of past weather"
-    cluster_locations()
-    print "Clustered data..."
-    roc_auc(days_past)
+
+    days_past = [5,7,10,15,20]
+    for day in days_past:
+        last_week_weather(day)
+        print "Added ", str(day), " days of past weather"
+        cluster_locations()
+        print "Clustered data..."
+        roc_auc(day)
 
