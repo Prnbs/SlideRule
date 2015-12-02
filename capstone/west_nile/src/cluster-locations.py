@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import math
 
 
-from sklearn.cluster import KMeans
 import pandas as pd
 from sklearn.cluster import KMeans
 

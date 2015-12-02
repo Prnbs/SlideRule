@@ -1,0 +1,354 @@
+__author__ = 'psinha4'
+
+import pandas as pd
+import numpy as np
+import datetime
+from sklearn.cluster import KMeans
+from matplotlib.font_manager import FontProperties
+
+from sklearn.metrics import roc_curve, auc
+from sklearn.cross_validation import KFold, StratifiedKFold
+
+
+def clean_train():
+    traps = pd.read_csv('../input/train.csv', parse_dates=['Date'])
+    d_categorical_species = {}
+    d_categorical_species['CULEX ERRATICUS'] = 0
+    d_categorical_species['CULEX PIPIENS'] = 1
+    d_categorical_species['CULEX PIPIENS/RESTUANS'] = 2
+    d_categorical_species['CULEX RESTUANS'] = 3
+    d_categorical_species['CULEX SALINARIUS'] = 4
+    d_categorical_species['CULEX TARSALIS'] = 5
+    d_categorical_species['CULEX TERRITANS'] = 6
+
+    species_categorical = np.full((len(traps), 1), 0)
+
+    species_idx = traps.columns.get_loc("Species")
+
+    for index, row in traps.iterrows():
+        if d_categorical_species[traps.iloc[index, species_idx]] == 1 or \
+            d_categorical_species[traps.iloc[index, species_idx]] == 3:
+            species_categorical[index] = 1
+        elif d_categorical_species[traps.iloc[index, species_idx]] == 2:
+            species_categorical[index] = 1.5
+        else:
+            species_categorical[index] = 0
+
+    traps = traps.drop("Species", 1)
+
+    traps['Species_Categorical'] = species_categorical
+
+    traps.to_csv('../input/train_clean.csv', index=False)
+
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def correct_station_data(row_index, col_index, weather):
+    result = 0
+    try:
+        if not is_number(weather.iloc[row_index, col_index]):
+            if not is_number(weather.iloc[row_index+1, col_index]):
+                result = 0
+            else:
+                result = weather.iloc[row_index+1, col_index]
+        else:
+            if is_number(weather.iloc[row_index+1, col_index]):
+                result = max(float(weather.iloc[row_index, col_index]), float(weather.iloc[row_index+1, col_index]))
+            else:
+                result = float(weather.iloc[row_index, col_index])
+    except IndexError:
+        print row_index
+    return result
+
+
+def clean_weather():
+    weather = pd.read_csv('../input/weather.csv', parse_dates=['Date'])
+    station_idx = weather.columns.get_loc("Station")
+
+    precip_corrected = np.full((len(weather), 1), 0)
+    wetBulb_corrected = np.full((len(weather), 1), 0)
+    stnPres_corrected = np.full((len(weather), 1), 0)
+    seaLevel_corrected = np.full((len(weather), 1), 0)
+
+    precip_idx = weather.columns.get_loc("PrecipTotal")
+    wetbulb_idx = weather.columns.get_loc("WetBulb")
+    stnPres_idx = weather.columns.get_loc("StnPressure")
+    sealevel_idx = weather.columns.get_loc("SeaLevel")
+
+    for index, row in weather.iterrows():
+        # ignore the even rows
+        if weather.iloc[index, station_idx] == 2:
+            continue
+        if index >= len(weather):
+            break
+        precip_corrected[index] = correct_station_data(index, precip_idx, weather)
+        wetBulb_corrected[index] = correct_station_data(index, wetbulb_idx, weather)
+        seaLevel_corrected[index] = correct_station_data(index, sealevel_idx, weather)
+        stnPres_corrected[index] = correct_station_data(index, stnPres_idx, weather)
+
+    weather['PrecipTotal_Corr'] = precip_corrected
+    weather['WetBulb_Corr'] = wetBulb_corrected
+    weather['SeaLevel_Corr'] = seaLevel_corrected
+    weather['StnPress_Corr'] = stnPres_corrected
+
+    weather = weather.drop("PrecipTotal", 1)
+    weather = weather.drop("WetBulb", 1)
+    weather = weather.drop("StnPressure", 1)
+    weather = weather.drop("SeaLevel", 1)
+    weather = weather.drop("CodeSum", 1)
+    weather = weather.drop("Depth", 1)
+    weather = weather.drop("Water1", 1)
+    weather = weather.drop("SnowFall", 1)
+
+    weather = weather[weather.Station != 2]
+    weather = weather.drop("Station", 1)
+
+    weather.to_csv('../input/weather_corrected.csv', index=False)
+
+
+def merge_files():
+    traps = pd.read_csv('../input/train_clean.csv', parse_dates=['Date'])
+    weather = pd.read_csv('../input/weather_corrected.csv', parse_dates=['Date'])
+    spray = pd.read_csv('../input/spray.csv', parse_dates=['Date'])
+
+    # new columns to hold info if a location was sprayed and if yes then how many days ago
+    # it is initialized to NumMosquitos for no particular reason
+    sprayed = np.full((len(traps), 1), -2)
+    last_sprayed = np.full((len(traps), 1), -2)
+    distance_from_sprayed = np.full((len(traps), 1), -2)
+
+    unique_spray_dates = spray.groupby('Date', as_index=False).count()
+
+    dates_sprayed = unique_spray_dates['Date']
+
+    spray_idx = 0
+    traps_idx = 0
+
+    # keep iterating over train until day diff is positive
+    while  traps_idx < len(traps):
+        day_diff = traps.iloc[traps_idx, 0] - spray.iloc[spray_idx, 0]
+        # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
+        if day_diff.days < 0:
+            sprayed[traps_idx] = False
+            last_sprayed[traps_idx] = -1
+            traps_idx += 1
+        else:
+            break
+
+    # print "First non negative date at ", traps_idx
+
+    # now update the two new arrays
+    # first need to solve closest pair of points problem
+    trap_idx_last_item = traps_idx
+    l_subdivision_index = []
+    for index, row in unique_spray_dates.iterrows():
+        # if this is not the last date on which spray was applied
+        if index+1 < len(dates_sprayed):
+            next_date = dates_sprayed[index+1]
+            # find the index up to which this sprayed data can be used
+            while trap_idx_last_item < len(traps):
+                date = traps.iloc[trap_idx_last_item, 0]
+                if date < next_date:
+                    sprayed[trap_idx_last_item] = True
+                    # print  (date - dates_sprayed[index]).days
+                    last_sprayed[trap_idx_last_item] =  (date - dates_sprayed[index]).days
+                    trap_idx_last_item += 1
+                else:
+                    break
+            l_subdivision_index.append(trap_idx_last_item)
+            # print trap_idx_last_item, (date - dates_sprayed[index]).days
+        else:
+            # last date on spray's list
+            next_date = dates_sprayed[index]
+            while trap_idx_last_item < len(traps):
+                date = traps.iloc[trap_idx_last_item, 0]
+                if date > next_date:
+                        sprayed[trap_idx_last_item] = True
+                        # print  (date - dates_sprayed[index]).days
+                        last_sprayed[trap_idx_last_item] = (date - dates_sprayed[index]).days
+                        trap_idx_last_item += 1
+                else:
+                    break
+
+    # sprayed_series = pd.Series(sprayed, index=traps.index)
+    # last_sprayed_series = pd.Series(last_sprayed,  index=traps.index)
+
+    # traps['sprayed'] = sprayed
+    traps['when_sprayed'] = last_sprayed
+
+    merged = traps.merge(weather, how="inner", on='Date')
+    # merged = merged[merged.Station != 2]
+    merged.to_csv('../input/train_weather_spray.csv', index=False)
+
+
+def last_week_weather(days_past):
+    traps_actual = pd.read_csv('../input/train_weather_spray.csv', parse_dates=['Date'])
+    # only want last week's data for when virus is present
+    traps = traps_actual[traps_actual.WnvPresent == 1]
+    print "Length before ", len(traps_actual)
+
+    # create a dictionary from weather file with date as key
+    reader = pd.read_csv(open("../input/weather_corrected.csv"))
+    weather = {}
+    for index, row in reader.iterrows():
+        # print row[0]
+        weather[row[0]] = row[1:]
+
+    for index, row in traps.iterrows():
+        # From the day the virus was found add the weather for each day before that date to the dataframe.
+        # go back for 5 days
+        # store the data from traps csv. We'll append it to the weather for the last N days
+        data_from_traps = row[1:7]
+        # now subtract N days
+        for day in range(1, days_past+1):
+            data_to_prepend = data_from_traps
+            delta = datetime.timedelta(days=day)
+            earlier_date = row[0] - delta
+            earlier_date_str = earlier_date.strftime("%Y-%m-%d")
+            # get the weather for the earlier date
+            weather_data_for_earlier_day = weather[earlier_date_str]
+
+            data_to_prepend['Date'] = earlier_date
+            # unknown bug causes date with 1 day difference to appear as elapsed seconds, so add it twice
+            data_to_prepend['Date'] = earlier_date
+
+            data_to_append = data_to_prepend.append(weather_data_for_earlier_day)
+            traps_actual = traps_actual.append(data_to_append, ignore_index=True)
+
+    print "Length after ", len(traps_actual)
+    traps_actual.to_csv('../input/train_weather_spray_appended.csv', index=False)
+
+
+def cluster_locations():
+    traps = pd.read_csv('../input/train_weather_spray_appended.csv', verbose=True, parse_dates=['Date'])
+
+    trap_loc = traps[['Longitude', 'Latitude']]
+    traps = traps.drop('Latitude', 1)
+    traps = traps.drop('Longitude', 1)
+
+    day = []
+    week_of_year = []
+    year = []
+    month = []
+
+    for date in traps['Date']:
+        week_of_year.append(date.weekofyear)
+        year.append(date.year)
+        month.append(date.month)
+        day.append(date.day)
+
+    traps = traps.drop('Date', 1)
+
+    clf = KMeans()
+    labels = clf.fit_predict(trap_loc)
+
+    traps['location_cluster'] = labels
+    traps['WeekOfYear'] = week_of_year
+    traps['Month'] = month
+    traps['Year'] = year
+    traps['Day'] = day
+    traps.to_csv('../input/train_weather_spray_clustered.csv', index=False)
+
+
+def plot_roc_auc(clf, plt, traps, labels, name):
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+
+    # Compute micro-average ROC curve and ROC area
+
+    kf = StratifiedKFold(labels, n_folds=10, shuffle=True)
+
+    mean_tpr = 0.0
+    mean_fpr = np.linspace(0, 1, 100)
+    all_tpr = []
+
+    for train_indices, test_indices in kf:
+
+        features_train = traps.iloc[train_indices]
+        features_test  = traps.iloc[test_indices]
+        labels_train   = [labels[ii] for ii in train_indices]
+        labels_test    = [labels[ii] for ii in test_indices]
+
+        clf.fit(features_train, labels_train)
+        pred = clf.predict(features_test)
+
+        fpr, tpr, _ = roc_curve(labels_test, pred)
+        from scipy import interp
+        mean_tpr += interp(mean_fpr, fpr, tpr)
+        mean_tpr[0] = 0.0
+
+        roc_auc = auc(fpr, tpr)
+        label = 'ROC for ' + name +' (area = %0.2f)'
+        plt.plot(fpr, tpr, label=label % roc_auc)
+
+        # print features_train.head(2)
+
+        from sklearn.metrics import accuracy_score
+        print accuracy_score(labels_test, pred)
+        print accuracy_score(labels_test, pred)
+        return plt
+
+    mean_tpr /= len(kf)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+    plt.plot(mean_fpr, mean_tpr, 'k--',label='Mean ROC (area = %0.2f)' % mean_auc, lw=2)
+
+
+def roc_auc(file_num):
+    traps = pd.read_csv('../input/train_weather_spray_clustered.csv', verbose=True)#, parse_dates=['Date'])
+
+    # extract label
+    labels = traps['WnvPresent']
+    # drop label from features
+    traps.drop('WnvPresent', 1, inplace=True)
+
+    from sklearn import tree
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.svm import SVC
+
+    clf_rf = RandomForestClassifier(n_estimators=100, verbose=1)
+    clf_nb = GaussianNB()
+    clf_svc = SVC(kernel='linear', C=1000.0)
+    clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
+    # Compute ROC curve and ROC area for each class
+    import matplotlib.pyplot as plt
+    plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
+    plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
+    plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
+    plt = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
+
+    fontP = FontProperties()
+    fontP.set_size('small')
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic')
+    plt.legend(loc="lower right", prop = fontP)
+    # plt.show()
+    file_name = '../plots/Week_Weather_Stratified#' + str(file_num) + '.jpg'
+    plt.savefig(file_name)
+
+if __name__ == '__main__':
+    days_past = 20
+    # clean_train()
+    # print "Cleaned train..."
+    # clean_weather()
+    # print "Cleaned weather..."
+    # merge_files()
+    # print "Merged train, weather, spray"
+    last_week_weather(days_past)
+    print "Added ", str(days_past), " days of past weather"
+    cluster_locations()
+    print "Clustered data..."
+    roc_auc(days_past)
+

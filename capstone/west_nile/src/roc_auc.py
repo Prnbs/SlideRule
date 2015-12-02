@@ -58,7 +58,7 @@ def plot_roc_auc(clf, plt, traps, labels, name):
 if __name__ == '__main__':
     traps = pd.read_csv('../input/train_weather_spray_clustered.csv', verbose=True)#, parse_dates=['Date'])
 
-# extract label
+    # extract label
     labels = traps['WnvPresent']
     # drop label from features
     traps.drop('WnvPresent', 1, inplace=True)
@@ -89,4 +89,4 @@ if __name__ == '__main__':
     plt.title('Receiver operating characteristic')
     plt.legend(loc="lower right", prop = fontP)
     # plt.show()
-    plt.savefig('../plots/Week_Weather_Stratified#3.jpg')
+    plt.savefig('../plots/Week_Weather_Stratified#9_new.jpg')

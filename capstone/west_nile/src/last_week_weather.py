@@ -19,9 +19,9 @@ if __name__ == '__main__':
     for index, row in traps.iterrows():
         # From the day the virus was found add the weather for each day before that date to the dataframe.
         # go back for 5 days
-        number_of_days_in_past = 3
+        number_of_days_in_past = 9
         # store the data from traps csv. We'll append it to the weather for the last N days
-        data_from_traps = row[1:10]
+        data_from_traps = row[1:7]
         # now subtract N days
         for day in range(1, number_of_days_in_past+1):
             data_to_prepend = data_from_traps
@@ -40,4 +40,6 @@ if __name__ == '__main__':
 
     print "Length after ", len(traps_actual)
     traps_actual.to_csv('../input/train_weather_spray_appended.csv', index=False)
+
+
 
