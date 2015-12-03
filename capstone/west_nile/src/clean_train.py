@@ -46,8 +46,21 @@ if __name__ == '__main__':
 
         # distance_from_centre = haversine_distance(traps.iloc[index, lat_idx], traps.iloc[index, long_idx])
 
+    traps['IsPipiens'        ] = ((traps['Species']=='CULEX PIPIENS'  )*1 +           # 8.9%   / 2699
+                               (traps['Species']=='CULEX PIPIENS/RESTUANS')*0.5)
+    traps['IsPipiensRestuans'] = ((traps['Species']=='CULEX PIPIENS/RESTUANS')*1 +    # 5.5%   / 4752
+                               (traps['Species']=='CULEX PIPIENS'  )*0 + (traps['Species']=='CULEX RESTUANS'  )*0)
+    traps['IsRestuans'       ] = ((traps['Species']=='CULEX RESTUANS'  )*1 +          # 1.8%   / 2740
+                               (traps['Species']=='CULEX PIPIENS/RESTUANS')*0.5)
+#         traps['IsSalinarius'     ] = (traps['Species']=='CULEX SALINARIUS')*1           #   0%   /   86
+#         traps['IsTarsalis'       ] = (traps['Species']=='CULEX TARSALIS'  )*1           #   0%   /    6
+#         traps['IsTerritans'      ] = (traps['Species']=='CULEX TERRITANS' )*1           #   0%   /  222
+    traps['IsOther'          ] = (traps['Species']!='CULEX PIPIENS')*(traps['Species']!='CULEX PIPIENS/RESTUANS')*(traps['Species']!='CULEX RESTUANS')
+
+
+
     traps = traps.drop("Species", 1)
 
-    traps['Species_Categorical'] = species_categorical
+    # traps['Species_Categorical'] = species_categorical
 
     traps.to_csv('../input/train_clean.csv', index=False)
