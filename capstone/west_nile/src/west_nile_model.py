@@ -179,7 +179,7 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
         # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
         if day_diff.days < 0:
             sprayed[traps_idx] = False
-            last_sprayed[traps_idx] = -1
+            last_sprayed[traps_idx] = 3
             traps_idx += 1
         else:
             break
@@ -200,7 +200,12 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                 if date < next_date:
                     sprayed[trap_idx_last_item] = True
                     # print  (date - dates_sprayed[index]).days
-                    last_sprayed[trap_idx_last_item] =  (date - dates_sprayed[index]).days
+                    day_diff = (date - dates_sprayed[index]).days
+                    if day_diff < 14:
+                        last_sprayed[trap_idx_last_item] =  1
+                    else:
+                        last_sprayed[trap_idx_last_item] =  2
+
                     trap_idx_last_item += 1
                 else:
                     break
@@ -214,7 +219,11 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                 if date > next_date:
                         sprayed[trap_idx_last_item] = True
                         # print  (date - dates_sprayed[index]).days
-                        last_sprayed[trap_idx_last_item] = (date - dates_sprayed[index]).days
+                        day_diff = (date - dates_sprayed[index]).days
+                        if day_diff < 14:
+                            last_sprayed[trap_idx_last_item] =  1
+                        else:
+                            last_sprayed[trap_idx_last_item] =  2
                         trap_idx_last_item += 1
                 else:
                     break
@@ -236,7 +245,6 @@ def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
     out_file = actual_file_name(out_file, days_past)
     if file_exists(out_file):
         return
-
 
     traps_actual = pd.read_csv(in_merged_file, parse_dates=['Date'])
     # only want last week's data for when virus is present
@@ -275,9 +283,9 @@ def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
     traps_actual.to_csv(out_file, index=False)
 
 
-def cluster_locations(in_file, out_file, day, test=False, clf=None):
-    in_file = actual_file_name(in_file, day)
-    out_file = actual_file_name(out_file, day)
+def cluster_locations(in_file, out_file, days_before, test=False, clf=None):
+    in_file = actual_file_name(in_file, days_before)
+    out_file = actual_file_name(out_file, days_before)
     if file_exists(out_file):
         return
 
@@ -286,7 +294,6 @@ def cluster_locations(in_file, out_file, day, test=False, clf=None):
     trap_loc = traps[['Longitude', 'Latitude']]
     traps = traps.drop('Latitude', 1)
     traps = traps.drop('Longitude', 1)
-
 
     day = []
     week_of_year = []
@@ -365,7 +372,7 @@ def plot_roc_auc(clf, plt, traps, labels, name):
     mean_auc = auc(mean_fpr, mean_tpr)
     plt.plot(mean_fpr, mean_tpr,
              label=label % mean_auc)
-    return plt
+    return plt, clf
 
 
 def roc_auc(file_num, in_file, day):
@@ -377,24 +384,26 @@ def roc_auc(file_num, in_file, day):
     traps.drop('WnvPresent', 1, inplace=True)
 
     from sklearn import tree
-    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
     from sklearn.naive_bayes import GaussianNB
     from sklearn.svm import SVC
     import matplotlib.pyplot as plt
     plt.clf()
 
-    # for estimator in [700,800,900,1000,1100,1200,1300,1400]:
+    # for estimator in [2,10,30,50,100,200]:
     #     print estimator
-    clf_rf = RandomForestClassifier(n_estimators=700)
+    clf_rf = RandomForestClassifier(n_estimators=100, min_samples_split=30, criterion='entropy', max_features=5)
     # clf_nb = GaussianNB()
-    # clf_svc = SVC(kernel='linear', C=1000.0)
+    # clf_svc = SVC(kernel='rbf', C=1000.0)
+    # clf_ada = AdaBoostClassifier(n_estimators=100)
     # clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
     # Compute ROC curve and ROC area for each class
     # plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
     # plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
-    # plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
-    plt = plot_roc_auc(clf_rf, plt, traps, labels,str(700))
-    # plt = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
+    plt, clf = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
+    # plt = plot_roc_auc(clf_rf, plt, traps, labels,str(10))
+    # plt, clf = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
+    # plt, clf = plot_roc_auc(clf_ada, plt, traps, labels,'Ada')
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -409,7 +418,7 @@ def roc_auc(file_num, in_file, day):
     # plt.show()
     file_name = '../plots/Week_Weather_Stratified#' + str(file_num) + '.jpg'
     plt.savefig(file_name)
-    return clf_rf
+    return clf
 
 
 def predict_virus(clf, in_file, days):
@@ -474,7 +483,7 @@ if __name__ == '__main__':
     print "Classifying..."
     classifier = roc_auc(day, out_trap_clustered_file, day)
 
-    print classifier.feature_importances_
+    # print classifier.feature_importances_
 
     in_test_file = '../input/test.csv'
     out_test_file = '../output/test_clean.csv'
