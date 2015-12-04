@@ -5,12 +5,26 @@ import numpy as np
 import datetime
 from sklearn.cluster import KMeans
 from matplotlib.font_manager import FontProperties
-
 from sklearn.metrics import roc_curve, auc
 from sklearn.cross_validation import KFold, StratifiedKFold
+import os.path
 
 
-def clean_train(in_file, out_file):
+def file_exists(file_name):
+    return os.path.exists(file_name)
+
+
+def actual_file_name(file_name, day):
+    index = len(file_name) - 4
+    actual_name = file_name[:index] + str(day) + ".csv"
+    return actual_name
+
+
+def clean_train(in_file, out_file, day):
+    out_file = actual_file_name(out_file, day)
+    if file_exists(out_file):
+        return
+
     traps = pd.read_csv(in_file, parse_dates=['Date'])
     d_categorical_species = {}
     d_categorical_species['CULEX ERRATICUS'] = 0
@@ -43,14 +57,13 @@ def clean_train(in_file, out_file):
                                (traps['Species']=='CULEX PIPIENS/RESTUANS')*0.5)
     traps['IsOther'          ] = (traps['Species']!='CULEX PIPIENS')*(traps['Species']!='CULEX PIPIENS/RESTUANS')*(traps['Species']!='CULEX RESTUANS')*1
 
-
     traps = traps.drop("Species", 1)
     traps = traps.drop("Address", 1)
     traps = traps.drop("Block", 1)
     traps = traps.drop("Street", 1)
     traps = traps.drop("AddressNumberAndStreet", 1)
     traps = traps.drop("AddressAccuracy", 1)
-    traps = traps.drop("Trap", 1)
+    # traps = traps.drop("Trap", 1)
 
     # traps['Species_Categorical'] = species_categorical
 
@@ -83,7 +96,11 @@ def correct_station_data(row_index, col_index, weather):
     return result
 
 
-def clean_weather(in_file, out_file):
+def clean_weather(in_file, out_file, day):
+    out_file = actual_file_name(out_file, day)
+    if file_exists(out_file):
+        return
+
     weather = pd.read_csv(in_file, parse_dates=['Date'])
     station_idx = weather.columns.get_loc("Station")
 
@@ -128,7 +145,14 @@ def clean_weather(in_file, out_file):
     weather.to_csv(out_file, index=False)
 
 
-def merge_files(in_train_file, in_weather_file, out_file):
+def merge_files(in_train_file, in_weather_file, out_file, day):
+    in_train_file = actual_file_name(in_train_file, day)
+    in_weather_file = actual_file_name(in_weather_file, day)
+    out_file = actual_file_name(out_file, day)
+    if file_exists(out_file):
+        return
+
+
     traps = pd.read_csv(in_train_file, parse_dates=['Date'])
     weather = pd.read_csv(in_weather_file, parse_dates=['Date'])
     spray = pd.read_csv('../input/spray.csv', parse_dates=['Date'])
@@ -207,6 +231,13 @@ def merge_files(in_train_file, in_weather_file, out_file):
 
 
 def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
+    in_merged_file = actual_file_name(in_merged_file, days_past)
+    in_weather_file = actual_file_name(in_weather_file, days_past)
+    out_file = actual_file_name(out_file, days_past)
+    if file_exists(out_file):
+        return
+
+
     traps_actual = pd.read_csv(in_merged_file, parse_dates=['Date'])
     # only want last week's data for when virus is present
     traps = traps_actual[traps_actual.WnvPresent == 1]
@@ -223,7 +254,7 @@ def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
         # From the day the virus was found add the weather for each day before that date to the dataframe.
         # go back for 5 days
         # store the data from traps csv. We'll append it to the weather for the last N days
-        data_from_traps = row[1:10]
+        data_from_traps = row[1:11]
         # now subtract N days
         for day in range(1, days_past+1):
             data_to_prepend = data_from_traps
@@ -244,7 +275,12 @@ def last_week_weather(days_past, in_merged_file, in_weather_file, out_file):
     traps_actual.to_csv(out_file, index=False)
 
 
-def cluster_locations(in_file, out_file, test=False, clf=None):
+def cluster_locations(in_file, out_file, day, test=False, clf=None):
+    in_file = actual_file_name(in_file, day)
+    out_file = actual_file_name(out_file, day)
+    if file_exists(out_file):
+        return
+
     traps = pd.read_csv(in_file, parse_dates=['Date'])
 
     trap_loc = traps[['Longitude', 'Latitude']]
@@ -280,6 +316,16 @@ def cluster_locations(in_file, out_file, test=False, clf=None):
         traps = traps.drop('NumMosquitos', 1)
     traps.to_csv(out_file, index=False)
     return clf
+
+
+def cluster_traps(in_file, out_file, day, clf=None):
+    in_file = actual_file_name(in_file, day)
+    out_file = actual_file_name(out_file, day)
+    if file_exists(out_file):
+        return
+    traps = pd.read_csv(in_file)
+    traps.Trap = traps.Trap.map(lambda x: float(x[1:4]))
+    traps.to_csv(out_file, index=False)
 
 
 def plot_roc_auc(clf, plt, traps, labels, name):
@@ -318,13 +364,13 @@ def plot_roc_auc(clf, plt, traps, labels, name):
     mean_tpr[-1] = 1.0
     mean_auc = auc(mean_fpr, mean_tpr)
     plt.plot(mean_fpr, mean_tpr,
-             label=label % mean_auc, lw=2)
+             label=label % mean_auc)
     return plt
 
 
-def roc_auc(file_num, in_file):
+def roc_auc(file_num, in_file, day):
+    in_file = actual_file_name(in_file, day)
     traps = pd.read_csv(in_file)
-
     # extract label
     labels = traps['WnvPresent']
     # drop label from features
@@ -334,17 +380,20 @@ def roc_auc(file_num, in_file):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.naive_bayes import GaussianNB
     from sklearn.svm import SVC
-
-    clf_rf = RandomForestClassifier(n_estimators=100)
-    clf_nb = GaussianNB()
-    clf_svc = SVC(kernel='linear', C=1000.0)
-    clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
-    # Compute ROC curve and ROC area for each class
     import matplotlib.pyplot as plt
     plt.clf()
+
+    # for estimator in [700,800,900,1000,1100,1200,1300,1400]:
+    #     print estimator
+    clf_rf = RandomForestClassifier(n_estimators=700)
+    # clf_nb = GaussianNB()
+    # clf_svc = SVC(kernel='linear', C=1000.0)
+    # clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
+    # Compute ROC curve and ROC area for each class
     # plt = plot_roc_auc(clf_dt, plt, traps, labels,'D Tree')
     # plt = plot_roc_auc(clf_nb, plt, traps, labels,'G NB')
-    plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
+    # plt = plot_roc_auc(clf_rf, plt, traps, labels,'R Forest')
+    plt = plot_roc_auc(clf_rf, plt, traps, labels,str(700))
     # plt = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
 
     fontP = FontProperties()
@@ -364,6 +413,7 @@ def roc_auc(file_num, in_file):
 
 
 def predict_virus(clf, in_file, days):
+    in_file = actual_file_name(in_file, day)
     traps = pd.read_csv(in_file)
     id = traps['Id']
     traps = traps.drop('Id', 1)
@@ -376,9 +426,10 @@ def predict_virus(clf, in_file, days):
     chance = []
     for list in pred_prob:
         chance.append(float("{0:.1f}".format(list[1])))
+        # chance.append(float(list[1]))
     submission['Id'] = id
     submission['WnvPresent'] = chance
-    file_name = '../output/submission_' + str(day) + '.csv'
+    file_name = '../submission/submission_' + str(day) + '.csv'
     submission.to_csv(file_name, index=False)
 
 
@@ -391,51 +442,60 @@ def save_classifier(clf, name, num):
 
 
 if __name__ == '__main__':
+    day = 14
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
-    clean_train(in_train_file, out_train_file)
+    clean_train(in_train_file, out_train_file, day)
     print "Cleaned train..."
 
     in_weather_file = '../input/weather.csv'
     out_weather_file = '../output/weather_corrected.csv'
-    clean_weather(in_weather_file, out_weather_file)
+    clean_weather(in_weather_file, out_weather_file, day)
     print "Cleaned weather..."
 
     out_merged_file = '../output/train_weather_spray.csv'
-    merge_files(out_train_file, out_weather_file, out_merged_file)
+    merge_files(out_train_file, out_weather_file, out_merged_file, day)
     print "Merged train, weather, spray"
 
     # days_past = [5,7,10,15,20]
     # for day in days_past:
 
-    day = 20
     out_train_appended = '../output/train_weather_spray_appended.csv'
     last_week_weather(day, out_merged_file, out_weather_file, out_train_appended)
     print "Added ", str(day), " days of past weather"
 
     out_clustered_file = '../output/train_weather_spray_clustered.csv'
-    kmeans_clf = cluster_locations(out_train_appended, out_clustered_file)
-    print "Clustered data..."
+    kmeans_locations_clf = cluster_locations(out_train_appended, out_clustered_file, day)
+    print "Clustered location..."
 
-    classifier = roc_auc(day, out_clustered_file)
+    out_trap_clustered_file =  '../output/train_weather_spray_clustered_traps.csv'
+    cluster_traps(out_clustered_file, out_trap_clustered_file, day)
+    print "Clustered traps..."
+    print "Classifying..."
+    classifier = roc_auc(day, out_trap_clustered_file, day)
 
     print classifier.feature_importances_
 
     in_test_file = '../input/test.csv'
     out_test_file = '../output/test_clean.csv'
-    clean_train(in_test_file, out_test_file)
+    clean_train(in_test_file, out_test_file, day)
     print "Cleaned test..."
 
     out_merged_test_file = '../output/test_weather_spray.csv'
-    merge_files(out_test_file,out_weather_file, out_merged_test_file)
+    merge_files(out_test_file, out_weather_file, out_merged_test_file, day)
     print "Merged test, weather, spray"
 
     out_clustered_test_file = '../output/test_weather_spray_clustered.csv'
-    cluster_locations(out_merged_test_file, out_clustered_test_file, test=True, clf=kmeans_clf)
+    cluster_locations(out_merged_test_file, out_clustered_test_file, day, test=True, clf=kmeans_locations_clf)
+    print "Clustered test data..."
+
+    out_clustered_traps_test_file = '../output/test_weather_spray_clustered_traps.csv'
+    cluster_traps(out_clustered_test_file, out_clustered_traps_test_file, day)
     print "Clustered test data..."
 
     print "Predicting..."
-    predict_virus(classifier,out_clustered_test_file, day)
+    predict_virus(classifier, out_clustered_traps_test_file, day)
 
-    save_classifier(classifier,"Random_forest", day)
-    save_classifier(kmeans_clf,"k_means", day)
+    save_classifier(classifier, "Random_forest", day)
+    save_classifier(kmeans_locations_clf, "k_means_locations", day)
+    # save_classifier(kmeans_traps_clf, "k_means_trap", day)
