@@ -179,7 +179,7 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
         # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
         if day_diff.days < 0:
             sprayed[traps_idx] = False
-            last_sprayed[traps_idx] = 3
+            last_sprayed[traps_idx] = -1
             traps_idx += 1
         else:
             break
@@ -201,10 +201,11 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                     sprayed[trap_idx_last_item] = True
                     # print  (date - dates_sprayed[index]).days
                     day_diff = (date - dates_sprayed[index]).days
-                    if day_diff < 14:
-                        last_sprayed[trap_idx_last_item] =  1
-                    else:
-                        last_sprayed[trap_idx_last_item] =  2
+                    # if day_diff < 14:
+                    #     last_sprayed[trap_idx_last_item] =  1
+                    # else:
+                    #     last_sprayed[trap_idx_last_item] =  2
+                    last_sprayed[trap_idx_last_item] =  day_diff
 
                     trap_idx_last_item += 1
                 else:
@@ -220,10 +221,11 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                         sprayed[trap_idx_last_item] = True
                         # print  (date - dates_sprayed[index]).days
                         day_diff = (date - dates_sprayed[index]).days
-                        if day_diff < 14:
-                            last_sprayed[trap_idx_last_item] =  1
-                        else:
-                            last_sprayed[trap_idx_last_item] =  2
+                        # if day_diff < 14:
+                        #     last_sprayed[trap_idx_last_item] =  1
+                        # else:
+                        #     last_sprayed[trap_idx_last_item] =  2
+                        last_sprayed[trap_idx_last_item] =  day_diff
                         trap_idx_last_item += 1
                 else:
                     break
@@ -342,7 +344,7 @@ def plot_roc_auc(clf, plt, traps, labels, name):
 
     # Compute micro-average ROC curve and ROC area
 
-    kf = StratifiedKFold(labels, n_folds=10, shuffle=True)
+    kf = StratifiedKFold(labels, n_folds=10, shuffle=True, random_state =0)
 
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
@@ -392,7 +394,7 @@ def roc_auc(file_num, in_file, day):
 
     # for estimator in [2,10,30,50,100,200]:
     #     print estimator
-    clf_rf = RandomForestClassifier(n_estimators=100, min_samples_split=30, criterion='entropy', max_features=5)
+    clf_rf = RandomForestClassifier(n_estimators=800, min_samples_split=251, criterion='entropy', random_state=0)
     # clf_nb = GaussianNB()
     # clf_svc = SVC(kernel='rbf', C=1000.0)
     # clf_ada = AdaBoostClassifier(n_estimators=100)
@@ -404,6 +406,7 @@ def roc_auc(file_num, in_file, day):
     # plt = plot_roc_auc(clf_rf, plt, traps, labels,str(10))
     # plt, clf = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
     # plt, clf = plot_roc_auc(clf_ada, plt, traps, labels,'Ada')
+    # print clf.estimators_
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -451,7 +454,7 @@ def save_classifier(clf, name, num):
 
 
 if __name__ == '__main__':
-    day = 14
+    day = 13
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
     clean_train(in_train_file, out_train_file, day)
