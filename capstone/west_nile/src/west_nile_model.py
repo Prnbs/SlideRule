@@ -179,7 +179,8 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
         # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
         if day_diff.days < 0:
             sprayed[traps_idx] = False
-            last_sprayed[traps_idx] = -1
+            last_sprayed[traps_idx] = 100
+            # last_sprayed[traps_idx] = -1
             traps_idx += 1
         else:
             break
@@ -199,14 +200,9 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                 date = traps.iloc[trap_idx_last_item, traps_date_idx]
                 if date < next_date:
                     sprayed[trap_idx_last_item] = True
-                    # print  (date - dates_sprayed[index]).days
                     day_diff = (date - dates_sprayed[index]).days
-                    # if day_diff < 14:
-                    #     last_sprayed[trap_idx_last_item] =  1
-                    # else:
-                    #     last_sprayed[trap_idx_last_item] =  2
-                    last_sprayed[trap_idx_last_item] =  day_diff
-
+                    last_sprayed[trap_idx_last_item] = sprayed_since_ordinal(day_diff)
+                    # last_sprayed[trap_idx_last_item] = day_diff
                     trap_idx_last_item += 1
                 else:
                     break
@@ -221,11 +217,8 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
                         sprayed[trap_idx_last_item] = True
                         # print  (date - dates_sprayed[index]).days
                         day_diff = (date - dates_sprayed[index]).days
-                        # if day_diff < 14:
-                        #     last_sprayed[trap_idx_last_item] =  1
-                        # else:
-                        #     last_sprayed[trap_idx_last_item] =  2
-                        last_sprayed[trap_idx_last_item] =  day_diff
+                        last_sprayed[trap_idx_last_item] = sprayed_since_ordinal(day_diff)
+                        # last_sprayed[trap_idx_last_item] = day_diff
                         trap_idx_last_item += 1
                 else:
                     break
@@ -377,6 +370,28 @@ def plot_roc_auc(clf, plt, traps, labels, name):
     return plt, clf
 
 
+def sprayed_since_ordinal(days):
+    if days <= 5:
+        return 1
+    elif days <= 10:
+        return 2
+    elif days <= 15:
+        return 3
+    elif days <= 20:
+        return 4
+    elif days <= 30:
+        return 5
+    elif days <= 60:
+        return 6
+    elif days <= 90:
+        return 7
+    elif days <= 120:
+        return 8
+    else:
+        return 9
+    # return days
+
+
 def roc_auc(file_num, in_file, day):
     in_file = actual_file_name(in_file, day)
     traps = pd.read_csv(in_file)
@@ -454,7 +469,7 @@ def save_classifier(clf, name, num):
 
 
 if __name__ == '__main__':
-    day = 13
+    day = 14
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
     clean_train(in_train_file, out_train_file, day)
