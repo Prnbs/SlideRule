@@ -330,6 +330,68 @@ def cluster_traps(in_file, out_file, day, clf=None):
     traps.to_csv(out_file, index=False)
 
 
+def apply_first_classifier(in_file, out_file, day, clf=None,  test=False):
+    in_file = actual_file_name(in_file, day)
+    out_file = actual_file_name(out_file, day)
+    traps = pd.read_csv(in_file)
+    # extract label
+    # drop label from features
+    print in_file
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn import tree
+    from sklearn.ensemble import RandomForestClassifier
+    if not test:
+        clf_dt = GaussianNB()
+        # clf_dt = tree.DecisionTreeClassifier(criterion='gini',min_samples_split=100)
+        # clf_dt = RandomForestClassifier(n_estimators=800, min_samples_leaf=74, max_depth=15, criterion='entropy', random_state=0)
+        import matplotlib.pyplot as plt
+        labels = traps['WnvPresent']
+        traps.drop('WnvPresent', 1, inplace=True)
+
+        plt.clf()
+        plt, clf = plot_roc_auc(clf_dt, plt, traps, labels,'Decision Tree')
+        # fontP = FontProperties()
+        # fontP.set_size('small')
+        # plt.plot([0, 1], [0, 1], 'k--')
+        # plt.xlim([0.0, 1.0])
+        # plt.ylim([0.0, 1.05])
+        # plt.xlabel('False Positive Rate')
+        # plt.ylabel('True Positive Rate')
+        # title = 'ROC with ' + str(day) + ' days of extra data'
+        # plt.title(title)
+        # plt.legend(loc="lower right", prop = fontP)
+        # # plt.show()
+        # file_name = '../plots/Gaussian#' + str(day) + '.jpg'
+        # plt.savefig(file_name)
+    else:
+        id = traps['Id']
+        traps.drop('Id', 1, inplace=True)
+
+    print clf
+    pred_prob = clf.predict_proba(traps)
+    pred = clf.predict(traps)
+
+    chanceZero = []
+    chanceOne = []
+    # for list in pred_prob:
+    #     chanceZero.append(float("{0:.1f}".format(list[0])))
+    #     chanceOne.append(float("{0:.1f}".format(list[1])))
+    #
+    # traps['ChanceZero'] = chanceZero
+    # traps['ChanceOne'] = chanceOne
+    traps['Classified'] = pred
+    if test:
+        traps['Id'] = id
+    else:
+        traps['WnvPresent'] = labels
+
+    traps.to_csv(out_file, index=False)
+    if not test:
+        return clf, plt
+    else:
+        return clf
+
+
 def plot_roc_auc(clf, plt, traps, labels, name):
     fpr = dict()
     tpr = dict()
@@ -392,7 +454,7 @@ def sprayed_since_ordinal(days):
     return days
 
 
-def roc_auc(file_num, in_file, day):
+def roc_auc(file_num, in_file, plt=None):
     in_file = actual_file_name(in_file, day)
     traps = pd.read_csv(in_file)
     # extract label
@@ -405,7 +467,8 @@ def roc_auc(file_num, in_file, day):
     from sklearn.naive_bayes import GaussianNB
     from sklearn.svm import SVC
     import matplotlib.pyplot as plt
-    plt.clf()
+    if plt is None:
+        plt.clf()
 
     # for estimator in [2,10,30,50,100,200]:
     #     print estimator
@@ -449,11 +512,9 @@ def predict_virus(clf, in_file, days):
     traps = pd.read_csv(in_file)
     id = traps['Id']
     traps = traps.drop('Id', 1)
-    pred = clf.predict(traps)
     pred_prob = clf.predict_proba(traps)
     # print pred
     submission = pd.DataFrame()
-    traps['WnvPresent'] = pred
 
     chance = []
     for list in pred_prob:
@@ -474,7 +535,7 @@ def save_classifier(clf, name, num):
 
 
 if __name__ == '__main__':
-    day = 22
+    day = 20
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
     clean_train(in_train_file, out_train_file, day)
@@ -503,8 +564,13 @@ if __name__ == '__main__':
     out_trap_clustered_file =  '../output/train_weather_spray_clustered_traps.csv'
     cluster_traps(out_clustered_file, out_trap_clustered_file, day)
     print "Clustered traps..."
+
+    print "Applying first classifier..."
+    out_first_classifier =  '../output/train_weather_spray_NaiveBayes.csv'
+    clf_nb, plt = apply_first_classifier(out_trap_clustered_file, out_first_classifier, day)
+
     print "Classifying..."
-    classifier = roc_auc(day, out_trap_clustered_file, day)
+    classifier = roc_auc(day, out_first_classifier, plt)
 
     # print classifier.feature_importances_
 
@@ -525,8 +591,13 @@ if __name__ == '__main__':
     cluster_traps(out_clustered_test_file, out_clustered_traps_test_file, day)
     print "Clustered test data..."
 
+    print "Applying first classifier..."
+    out_first_classifier =  '../output/test_weather_spray_NaiveBayes.csv'
+    apply_first_classifier(out_clustered_traps_test_file, out_first_classifier, day, clf_nb, True)
+
+
     print "Predicting..."
-    predict_virus(classifier, out_clustered_traps_test_file, day)
+    predict_virus(classifier, out_first_classifier, day)
 
     save_classifier(classifier, "Random_forest", day)
     save_classifier(kmeans_locations_clf, "k_means_locations", day)
