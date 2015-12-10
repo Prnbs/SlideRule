@@ -179,8 +179,8 @@ def merge_files(in_train_file, in_weather_file, out_file, day):
         # print day_diff.days, traps.iloc[traps_idx, 0], spray.iloc[spray_idx, 0]
         if day_diff.days < 0:
             sprayed[traps_idx] = False
-            last_sprayed[traps_idx] = 100
-            # last_sprayed[traps_idx] = -1
+            # last_sprayed[traps_idx] = 100
+            last_sprayed[traps_idx] = -1
             traps_idx += 1
         else:
             break
@@ -371,25 +371,25 @@ def plot_roc_auc(clf, plt, traps, labels, name):
 
 
 def sprayed_since_ordinal(days):
-    if days <= 5:
-        return 1
-    elif days <= 10:
-        return 2
-    elif days <= 15:
-        return 3
-    elif days <= 20:
-        return 4
-    elif days <= 30:
-        return 5
-    elif days <= 60:
-        return 6
-    elif days <= 90:
-        return 7
-    elif days <= 120:
-        return 8
-    else:
-        return 9
-    # return days
+    # if days <= 5:
+    #     return 1
+    # elif days <= 10:
+    #     return 2
+    # elif days <= 15:
+    #     return 3
+    # elif days <= 20:
+    #     return 4
+    # elif days <= 30:
+    #     return 5
+    # elif days <= 60:
+    #     return 6
+    # elif days <= 90:
+    #     return 7
+    # elif days <= 120:
+    #     return 8
+    # else:
+    #     return 9
+    return days
 
 
 def roc_auc(file_num, in_file, day):
@@ -409,7 +409,8 @@ def roc_auc(file_num, in_file, day):
 
     # for estimator in [2,10,30,50,100,200]:
     #     print estimator
-    clf_rf = RandomForestClassifier(n_estimators=800, min_samples_split=251, criterion='entropy', random_state=0)
+    # clf_rf = RandomForestClassifier(n_estimators=800, min_samples_split=251, criterion='entropy', random_state=0)
+    clf_rf = RandomForestClassifier(n_estimators=800, min_samples_leaf=74, max_depth=15, criterion='entropy', random_state=0)
     # clf_nb = GaussianNB()
     # clf_svc = SVC(kernel='rbf', C=1000.0)
     # clf_ada = AdaBoostClassifier(n_estimators=100)
@@ -422,6 +423,10 @@ def roc_auc(file_num, in_file, day):
     # plt, clf = plot_roc_auc(clf_svc, plt, traps, labels,'SVC')
     # plt, clf = plot_roc_auc(clf_ada, plt, traps, labels,'Ada')
     # print clf.estimators_
+    print "Importances",clf.feature_importances_
+    # print "OOB Score", clf.oob_score_
+    # print "OOB Decision function", clf.oob_decision_function_
+    print "Num features", clf.n_features_
 
     fontP = FontProperties()
     fontP.set_size('small')
@@ -469,7 +474,7 @@ def save_classifier(clf, name, num):
 
 
 if __name__ == '__main__':
-    day = 14
+    day = 22
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
     clean_train(in_train_file, out_train_file, day)
