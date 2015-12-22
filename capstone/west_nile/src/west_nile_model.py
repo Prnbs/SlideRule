@@ -33,8 +33,8 @@ class Model:
     # Cleans train and test files
     # Removes species, address, block, street, address accuracy
     # Breaks down the Species into a one hot like encoder
-    def clean_train(self, in_file, out_file, day):
-        out_file = actual_file_name(out_file, day)
+    def clean_train(self, in_file, day, out):
+        out_file = actual_file_name(out, day)
         if file_exists(out_file):
             return
 
@@ -79,8 +79,8 @@ class Model:
 
     # Calls correct_station_data() for Precipitation, Wetbulb, Sealevel and StnPressure
     # Deletes codesum, depth, water1 and Snowfall
-    def clean_weather(self, in_file, out_file, day):
-        out_file = actual_file_name(out_file, day)
+    def clean_weather(self, in_file, day, out):
+        out_file = actual_file_name(out, day)
         if file_exists(out_file):
             return
 
@@ -130,10 +130,10 @@ class Model:
     # Merges train or test with weather and spray
     # Spray data only exists from August 2011, so for earlier dates -1 is entered
     # For others this column contains how many days ago was this area last sprayed
-    def merge_files(self, in_train_file, in_weather_file, out_file, day):
+    def merge_files(self, in_train_file, in_weather_file, day, out):
         in_train_file = actual_file_name(in_train_file, day)
         in_weather_file = actual_file_name(in_weather_file, day)
-        out_file = actual_file_name(out_file, day)
+        out_file = actual_file_name(out, day)
         if file_exists(out_file):
             return
 
@@ -263,9 +263,9 @@ class Model:
         traps_actual.to_csv(out_file, index=False)
 
     # Use KMeans to cluster the latitude and longitude data
-    def cluster_locations(self, in_file, out_file, days_before, test=False, clf=None):
+    def cluster_locations(self, in_file, days_before, test=False, clf=None, out=None):
         in_file = actual_file_name(in_file, days_before)
-        out_file = actual_file_name(out_file, days_before)
+        out_file = actual_file_name(out, days_before)
         if file_exists(out_file):
             return
 
@@ -306,9 +306,9 @@ class Model:
 
     # Clusters can be names as T001 or T001A where the A means its an extra trap added at the same location
     # This function extracts the number from the trap data
-    def cluster_traps(self, in_file, out_file, day, clf=None):
+    def cluster_traps(self, in_file, day, clf=None, out=None):
         in_file = actual_file_name(in_file, day)
-        out_file = actual_file_name(out_file, day)
+        out_file = actual_file_name(out, day)
         if file_exists(out_file):
             return
         traps = pd.read_csv(in_file)
@@ -417,8 +417,8 @@ class Model:
         return clf
 
     # Obtains the predicted probabilities and saves to file
-    def predict_virus(self, clf, in_file, days):
-        in_file = actual_file_name(in_file, day)
+    def predict_virus(self, clf, days, in_file):
+        in_file = actual_file_name(in_file, days)
         traps = pd.read_csv(in_file)
         id = traps['Id']
         traps = traps.drop('Id', 1)
@@ -432,7 +432,7 @@ class Model:
             # chance.append(float(list[1]))
         submission['Id'] = id
         submission['WnvPresent'] = chance
-        file_name = '../submission/submission_' + str(day) + '.csv'
+        file_name = '../submission/submission_' + str(days) + '.csv'
         submission.to_csv(file_name, index=False)
 
     # Saves the classifier to file
@@ -449,16 +449,16 @@ if __name__ == '__main__':
     in_train_file = '../input/train.csv'
     out_train_file = '../output/train_clean.csv'
     model = Model()
-    model.clean_train(in_train_file, out_train_file, day)
+    model.clean_train(in_train_file, day, out=out_train_file)
     print "Cleaned train..."
 
     in_weather_file = '../input/weather.csv'
     out_weather_file = '../output/weather_corrected.csv'
-    model.clean_weather(in_weather_file, out_weather_file, day)
+    model.clean_weather(in_weather_file, day, out=out_weather_file)
     print "Cleaned weather..."
 
     out_merged_file = '../output/train_weather_spray.csv'
-    model.merge_files(out_train_file, out_weather_file, out_merged_file, day)
+    model.merge_files(out_train_file, out_weather_file, day, out=out_merged_file)
     print "Merged train, weather, spray"
 
     out_train_appended = '../output/train_weather_spray_appended.csv'
@@ -466,11 +466,11 @@ if __name__ == '__main__':
     print "Added ", str(day), " days of past weather"
 
     out_clustered_file = '../output/train_weather_spray_clustered.csv'
-    kmeans_locations_clf = model.cluster_locations(out_train_appended, out_clustered_file, day)
+    kmeans_locations_clf = model.cluster_locations(out_train_appended, day, out=out_clustered_file)
     print "Clustered location..."
 
     out_trap_clustered_file =  '../output/train_weather_spray_clustered_traps.csv'
-    model.cluster_traps(out_clustered_file, out_trap_clustered_file, day)
+    model.cluster_traps(out_clustered_file, day, out=out_trap_clustered_file)
     print "Clustered traps..."
 
     print "Classifying..."
@@ -478,23 +478,23 @@ if __name__ == '__main__':
 
     in_test_file = '../input/test.csv'
     out_test_file = '../output/test_clean.csv'
-    model.clean_train(in_test_file, out_test_file, day)
+    model.clean_train(in_test_file, day, out=out_test_file)
     print "Cleaned test..."
 
     out_merged_test_file = '../output/test_weather_spray.csv'
-    model.merge_files(out_test_file, out_weather_file, out_merged_test_file, day)
+    model.merge_files(out_test_file, out_weather_file, day, out=out_merged_test_file)
     print "Merged test, weather, spray"
 
     out_clustered_test_file = '../output/test_weather_spray_clustered.csv'
-    model.cluster_locations(out_merged_test_file, out_clustered_test_file, day, test=True, clf=kmeans_locations_clf)
+    model.cluster_locations(out_merged_test_file, day,  test=True, clf=kmeans_locations_clf, out=out_clustered_test_file)
     print "Clustered test data..."
 
     out_clustered_traps_test_file = '../output/test_weather_spray_clustered_traps.csv'
-    model.cluster_traps(out_clustered_test_file, out_clustered_traps_test_file, day)
+    model.cluster_traps(out_clustered_test_file, day, out=out_clustered_traps_test_file)
     print "Clustered test data..."
 
     print "Predicting..."
-    model.predict_virus(classifier, out_clustered_traps_test_file, day)
+    model.predict_virus(classifier, day, out_clustered_traps_test_file)
 
     model.save_classifier(classifier, "Random_forest", day)
     model.save_classifier(kmeans_locations_clf, "k_means_locations", day)
